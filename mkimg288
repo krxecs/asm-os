@@ -1,0 +1,57 @@
+#!/bin/bash
+
+red=`tput setaf 1`
+green=`tput setaf 2`
+reset=`tput sgr0`
+
+[[ ! -d "bin" ]] && mkdir bin
+[[ ! -d "tmp" ]] && mkdir tmp
+
+echo -e "${green}Compiling Stage1... ${red}"
+cd Stage1
+nasm -f bin Boot1.asm -o ../tmp/fat12_bs
+echo -e "${green}Compiling Stage2... ${red}"
+cd ../Stage2
+nasm -f bin Stage2.asm -o ../tmp/KRNLDR.SYS
+echo -e "${green}Compiling Kernel... ${red}"
+cd ../Kernel
+nasm -f bin kernel.asm -o ../tmp/KRNL.SYS
+cd ..
+
+echo -e "${green}Creating disk image and formatting it...${red}"
+dd if=/dev/zero of=bin/fs.img bs=512 count=2880 2> /dev/null
+mkfs.msdos -F 12 bin/fs.img > /dev/null
+
+echo -e "${green}Copying bootsector...${red}"
+dd if=tmp/fat12_bs of=bin/fs.img conv=notrunc count=1 bs=512 2> /dev/null
+
+echo -e "${green}Mounting it in /mnt/fd0...${red}"
+[[ ! -d "/mnt/fd0" ]] && sudo mkdir /mnt/fd0
+sudo mount -o loop bin/fs.img /mnt/fd0
+
+echo -e "${green}Copying KRNLDR.SYS and KRNL.SYS into fs.img...${red}"
+sudo cp tmp/KRNLDR.SYS /mnt/fd0/KRNLDR.SYS
+sudo cp tmp/KRNL.SYS /mnt/fd0/KRNL.SYS
+
+echo -e "${green}'fs.img' is mounted in '/mnt/fd0'${red}"
+
+echo -e "${green}Unmounting it...${red}"
+sudo umount /mnt/fd0
+
+sudo chmod 666 bin/*
+sudo chmod 666 tmp/*
+sudo chmod 666 Kernel/*
+sudo chmod 666 Kernel/drivers/*
+sudo chmod 666 Stage1/*
+sudo chmod 666 Stage2/*
+
+sudo chmod 777 bin
+sudo chmod 777 tmp
+sudo chmod 777 Kernel
+sudo chmod 777 Kernel/drivers
+sudo chmod 777 Kernel/drivers/keyboard_maps
+sudo chmod 777 Stage1
+sudo chmod 777 Stage2
+
+echo -e "${green}Process Completed!${reset}"
+exit 0
